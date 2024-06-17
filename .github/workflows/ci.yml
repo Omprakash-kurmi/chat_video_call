@@ -1,33 +1,46 @@
-# .github/workflows/ci.yml
+name: CI
 
-name: CI Pipeline
-
-on:
-  push:
-    branches:
-      - main  # Adjust branch name as per your repository
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    services:
+      postgres:
+        image: postgres:12
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-      # Add your build, test, and deployment steps here
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:password@localhost:5432/myapp_test
+
+    steps:
+      - uses: actions/checkout@v2
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.7'
+          ruby-version: 3.1
 
       - name: Install dependencies
         run: |
           gem install bundler
           bundle install --jobs 4 --retry 3
 
-      - name: Run tests
+      - name: Setup database
         run: |
-          bundle exec rake test
+          bundle exec rake db:create
+          bundle exec rake db:schema:load
 
-      # Add more steps as needed for your specific project
+      - name: Run tests
+        run: bundle exec rspec
